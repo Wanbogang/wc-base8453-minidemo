@@ -15,3 +15,6 @@ A minimal **single-file HTML/JS** demo showing how to connect to **Base (chainId
 ## Notes
 - Uses `@walletconnect/universal-provider@2` + `@walletconnect/modal@2` via ESM CDN.
 - Inspired by WalletConnect/Reown documentation and examples.
+
+Demo live: https://wanbogang.github.io/wc-base8453-minidemo/
+Proof screenshots: [/proof](./proof)
