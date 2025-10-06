@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>WalletConnect × Base (8453) — Mini Demo</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; line-height: 1.4 }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #ddd; cursor: pointer }
+    pre { background: #f7f7f9; padding: 12px; border-radius: 10px; overflow: auto }
+  </style>
+</head>
+<body>
+  <h1>WalletConnect × Base (8453) — Mini Demo</h1>
+  <p>Demo minimal untuk koneksi via WalletConnect ke jaringan Base (chainId <code>8453</code>).</p>
+
+  <div style="display:flex; gap:8px; margin:12px 0">
+    <button id="btn-connect">Connect</button>
+    <button id="btn-disconnect" disabled>Disconnect</button>
+    <button id="btn-sign" disabled>personal_sign</button>
+  </div>
+
+  <pre id="out">[log]</pre>
+
+  <script type="module">
+    import UniversalProvider from 'https://esm.sh/@walletconnect/universal-provider@2';
+    import { WalletConnectModal } from 'https://esm.sh/@walletconnect/modal@2';
+
+    const PROJECT_ID = '3cf7abc4898e8a61abfcdbcc9b57ad06';
+    const BASE_EIP155 = 'eip155:8453';
+
+    const modal = new WalletConnectModal({ projectId: PROJECT_ID, themeMode: 'light' });
+
+    const outEl = document.getElementById('out');
+    const log = (...a) => { outEl.textContent += '\n' + a.join(' '); };
+
+    let provider, connected = false, account = null;
+
+    function setUI(state) {
+      document.getElementById('btn-connect').disabled   = (state === 'connected');
+      document.getElementById('btn-disconnect').disabled= (state !== 'connected');
+      document.getElementById('btn-sign').disabled      = (state !== 'connected');
+    }
+
+    async function initProvider() {
+      if (provider) return provider;
+      provider = await UniversalProvider.init({ projectId: PROJECT_ID });
+
+      provider.on('display_uri', async (uri) => { try { await modal.openModal({ uri }); } catch(e){ log('[modal]', e.message); }});
+      provider.on('session_delete', () => { log('[event] session_delete'); reset(); });
+      provider.on('session_event',  (e) => { log('[event] session_event', JSON.stringify(e)); });
+      provider.on('session_update', (e) => { log('[event] session_update', JSON.stringify(e)); });
+      return provider;
+    }
+
+    async function connect() {
+      try {
+        await initProvider();
+        const session = await provider.connect({
+          namespaces: { eip155: { methods:['eth_requestAccounts','personal_sign','eth_sign'], chains:[BASE_EIP155], events:['accountsChanged','chainChanged'] } }
+        });
+        try { modal.closeModal(); } catch {}
+        const acc = session.namespaces.eip155.accounts[0]; // eip155:8453:0x...
+        account = acc; connected = true;
+        log('[connected]', acc);
+        log('[chain]', BASE_EIP155);
+        setUI('connected');
+      } catch (e) { log('[connect error]', e.message || e); }
+    }
+
+    async function disconnect() {
+      try { if (provider && connected) await provider.disconnect(); } catch(e){ log('[disconnect error]', e.message); }
+      finally { reset(); }
+    }
+
+    function reset() { connected = false; account = null; setUI('disconnected'); log('[reset] disconnected'); }
+
+    async function personalSign() {
+      try {
+        if (!connected || !account) return;
+        const msg = `WC × Base demo — ${new Date().toISOString()}`;
+        const sig = await provider.request({ method: 'personal_sign', params: [msg, account.split(':')[2]] });
+        log('[personal_sign ok]', sig.slice(0, 18) + '…');
+      } catch (e) { log('[personal_sign error]', e.message); }
+    }
+
+    document.getElementById('btn-connect').onclick = connect;
+    document.getElementById('btn-disconnect').onclick = disconnect;
+    document.getElementById('btn-sign').onclick = personalSign;
+
+    setUI('disconnected');
+  </script>
+</body>
+</html>
