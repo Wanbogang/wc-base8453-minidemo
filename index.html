@@ -6,89 +6,136 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
     body { font-family: system-ui, sans-serif; margin: 24px; line-height: 1.4 }
-    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #ddd; cursor: pointer }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #ddd; cursor: pointer; margin-right: 6px }
     pre { background: #f7f7f9; padding: 12px; border-radius: 10px; overflow: auto }
   </style>
 </head>
 <body>
   <h1>WalletConnect × Base (8453) — Mini Demo</h1>
-  <p>Demo minimal untuk koneksi via WalletConnect ke jaringan Base (chainId <code>8453</code>).</p>
+  <p>Demo minimal koneksi ke <b>Base (chainId 8453)</b>. Tersedia dua cara: <b>WalletConnect</b> dan <b>Injected (MetaMask/Rabby)</b>.</p>
 
-  <div style="display:flex; gap:8px; margin:12px 0">
-    <button id="btn-connect">Connect</button>
-    <button id="btn-disconnect" disabled>Disconnect</button>
-    <button id="btn-sign" disabled>personal_sign</button>
+  <div style="margin:12px 0">
+    <button id="btn-connect-wc">Connect (WalletConnect)</button>
+    <button id="btn-disconnect-wc" disabled>Disconnect (WC)</button>
+    <button id="btn-sign-wc" disabled>personal_sign (WC)</button>
+  </div>
+
+  <div style="margin:12px 0">
+    <button id="btn-connect-inj">Connect (Injected)</button>
+    <button id="btn-sign-inj" disabled>personal_sign (Injected)</button>
   </div>
 
   <pre id="out">[log]</pre>
 
   <script type="module">
+    // ===== WalletConnect (tetap untuk nilai Builder) =====
     import UniversalProvider from 'https://esm.sh/@walletconnect/universal-provider@2';
     import { WalletConnectModal } from 'https://esm.sh/@walletconnect/modal@2';
 
     const PROJECT_ID = '3cf7abc4898e8a61abfcdbcc9b57ad06';
     const BASE_EIP155 = 'eip155:8453';
+    const BASE_HEX = '0x2105'; // 8453
 
     const modal = new WalletConnectModal({ projectId: PROJECT_ID, themeMode: 'light' });
-
     const outEl = document.getElementById('out');
     const log = (...a) => { outEl.textContent += '\n' + a.join(' '); };
 
-    let provider, connected = false, account = null;
+    let wcProvider, wcConnected = false, wcAccount = null;
 
-    function setUI(state) {
-      document.getElementById('btn-connect').disabled   = (state === 'connected');
-      document.getElementById('btn-disconnect').disabled= (state !== 'connected');
-      document.getElementById('btn-sign').disabled      = (state !== 'connected');
+    function setWC(state){
+      document.getElementById('btn-connect-wc').disabled = (state==='connected');
+      document.getElementById('btn-disconnect-wc').disabled = (state!=='connected');
+      document.getElementById('btn-sign-wc').disabled = (state!=='connected');
     }
+    setWC('disconnected');
 
-    async function initProvider() {
-      if (provider) return provider;
-      provider = await UniversalProvider.init({ projectId: PROJECT_ID });
-
-      provider.on('display_uri', async (uri) => { try { await modal.openModal({ uri }); } catch(e){ log('[modal]', e.message); }});
-      provider.on('session_delete', () => { log('[event] session_delete'); reset(); });
-      provider.on('session_event',  (e) => { log('[event] session_event', JSON.stringify(e)); });
-      provider.on('session_update', (e) => { log('[event] session_update', JSON.stringify(e)); });
-      return provider;
+    async function wcInit(){
+      if (wcProvider) return wcProvider;
+      wcProvider = await UniversalProvider.init({ projectId: PROJECT_ID });
+      wcProvider.on('display_uri', async (uri)=>{ try{ await modal.openModal({ uri }); }catch(e){ log('[wc modal]', e.message); }});
+      wcProvider.on('session_delete', ()=>{ log('[wc] session_delete'); wcReset(); });
+      wcProvider.on('session_event',  e=>log('[wc] session_event', JSON.stringify(e)));
+      wcProvider.on('session_update', e=>log('[wc] session_update', JSON.stringify(e)));
+      return wcProvider;
     }
-
-    async function connect() {
-      try {
-        await initProvider();
-        const session = await provider.connect({
-          namespaces: { eip155: { methods:['eth_requestAccounts','personal_sign','eth_sign'], chains:[BASE_EIP155], events:['accountsChanged','chainChanged'] } }
+    async function wcConnect(){
+      try{
+        await wcInit();
+        const session = await wcProvider.connect({
+          namespaces:{ eip155:{ methods:['eth_requestAccounts','personal_sign','eth_sign'], chains:[BASE_EIP155], events:['accountsChanged','chainChanged'] } }
         });
-        try { modal.closeModal(); } catch {}
-        const acc = session.namespaces.eip155.accounts[0]; // eip155:8453:0x...
-        account = acc; connected = true;
-        log('[connected]', acc);
+        try{ modal.closeModal(); }catch{}
+        wcAccount = session.namespaces.eip155.accounts[0]; // eip155:8453:0x...
+        wcConnected = true;
+        setWC('connected');
+        log('[WC connected]', wcAccount);
         log('[chain]', BASE_EIP155);
-        setUI('connected');
-      } catch (e) { log('[connect error]', e.message || e); }
+      }catch(e){ log('[wc connect error]', e.message || e); }
     }
-
-    async function disconnect() {
-      try { if (provider && connected) await provider.disconnect(); } catch(e){ log('[disconnect error]', e.message); }
-      finally { reset(); }
+    async function wcDisconnect(){
+      try{ if(wcProvider && wcConnected) await wcProvider.disconnect(); }catch(e){ log('[wc disconnect]', e.message); }
+      wcReset();
     }
-
-    function reset() { connected = false; account = null; setUI('disconnected'); log('[reset] disconnected'); }
-
-    async function personalSign() {
-      try {
-        if (!connected || !account) return;
+    function wcReset(){ wcConnected=false; wcAccount=null; setWC('disconnected'); log('[wc reset]'); }
+    async function wcSign(){
+      try{
+        if(!wcConnected || !wcAccount) return;
         const msg = `WC × Base demo — ${new Date().toISOString()}`;
-        const sig = await provider.request({ method: 'personal_sign', params: [msg, account.split(':')[2]] });
-        log('[personal_sign ok]', sig.slice(0, 18) + '…');
-      } catch (e) { log('[personal_sign error]', e.message); }
+        const sig = await wcProvider.request({ method:'personal_sign', params:[msg, wcAccount.split(':')[2]] });
+        log('[wc personal_sign]', sig.slice(0,18)+'…');
+      }catch(e){ log('[wc sign error]', e.message); }
     }
 
-    document.getElementById('btn-connect').onclick = connect;
-    document.getElementById('btn-disconnect').onclick = disconnect;
-    document.getElementById('btn-sign').onclick = personalSign;
+    document.getElementById('btn-connect-wc').onclick = wcConnect;
+    document.getElementById('btn-disconnect-wc').onclick = wcDisconnect;
+    document.getElementById('btn-sign-wc').onclick = wcSign;
 
-    setUI('disconnected');
+    // ===== Injected fallback (desktop tanpa HP) =====
+    async function ensureBaseNetwork(eth){
+      const chainId = await eth.request({ method:'eth_chainId' }).catch(()=>null);
+      if(chainId === BASE_HEX) return;
+      try{
+        await eth.request({ method:'wallet_switchEthereumChain', params:[{ chainId: BASE_HEX }] });
+      }catch(e){
+        if(e && e.code === 4902){
+          await eth.request({ method:'wallet_addEthereumChain', params:[{
+            chainId: BASE_HEX,
+            chainName: 'Base',
+            nativeCurrency:{ name:'Ether', symbol:'ETH', decimals:18 },
+            rpcUrls:['https://mainnet.base.org'],
+            blockExplorerUrls:['https://basescan.org']
+          }]} );
+        }else{
+          throw e;
+        }
+      }
+    }
+
+    let injAccount = null;
+    async function injConnect(){
+      const eth = window.ethereum;
+      if(!eth){ log('[injected] No wallet extension (MetaMask/Rabby)'); return; }
+      try{
+        await ensureBaseNetwork(eth);
+        const accts = await eth.request({ method:'eth_requestAccounts' });
+        injAccount = accts[0];
+        document.getElementById('btn-sign-inj').disabled = false;
+        log('[Injected connected]', injAccount);
+        log('[chain]', BASE_EIP155);
+      }catch(e){ log('[injected connect error]', e.message || e); }
+    }
+    async function injSign(){
+      const eth = window.ethereum;
+      if(!eth || !injAccount) return;
+      try{
+        const msg = `Injected × Base demo — ${new Date().toISOString()}`;
+        const sig = await eth.request({ method:'personal_sign', params:[msg, injAccount] });
+        log('[inj personal_sign]', sig.slice(0,18)+'…');
+      }catch(e){ log('[inj sign error]', e.message); }
+    }
+
+    document.getElementById('btn-connect-inj').onclick = injConnect;
+    document.getElementById('btn-sign-inj').onclick = injSign;
   </script>
 </body>
 </html>
