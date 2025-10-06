@@ -1,14 +1,17 @@
 # WalletConnect × Base (8453) — Mini Demo
 
-Demo minimal **single-file HTML/JS** untuk koneksi WalletConnect ke **Base (chainId 8453)**.
+A minimal **single-file HTML/JS** demo showing how to connect to **Base (chainId 8453)** via WalletConnect.
 
-## Cara pakai
-1. Project ID sudah diisi: `3cf7abc4898e8a61abfcdbcc9b57ad06`.
-2. Buka `index.html` di browser → klik **Connect** → pilih wallet → konek ke Base.
-3. Klik **personal_sign** untuk uji tanda tangan.
+## How to use
+1. Project ID is already set: `3cf7abc4898e8a61abfcdbcc9b57ad06`.
+2. Open `index.html` in a browser → click **Connect** → select your wallet → connect to Base.
+3. Click **personal_sign** to test a simple signature.
 
-## Bukti
-- Tampilkan akun (format `eip155:8453:0x...`), chain = Base, dan hasil `personal_sign` (potong sebagian saat publikasi).
+## What to capture (proof)
+- Account in the format `eip155:8453:0x...`
+- Chain displayed as **Base (8453)**
+- A truncated `personal_sign` result (do not expose the full signature publicly).
 
-## Kredit
-Terinspirasi oleh dokumentasi & contoh WalletConnect/Reown.
+## Notes
+- Uses `@walletconnect/universal-provider@2` + `@walletconnect/modal@2` via ESM CDN.
+- Inspired by WalletConnect/Reown documentation and examples.
